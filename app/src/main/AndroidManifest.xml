@@ -34,6 +34,7 @@
             android:name=".CredentialProviderActivity"
             android:exported="false"
             android:launchMode="singleTop"
+            android:taskAffinity=".credential"
             android:theme="@style/Theme.Authnkey.Transparent" />
 
         <!-- Credential Provider Service (Android 14+) -->
