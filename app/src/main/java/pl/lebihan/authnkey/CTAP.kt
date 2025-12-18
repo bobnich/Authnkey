@@ -30,6 +30,7 @@ data class DeviceInfo(
 }
 
 object CTAP {
+    // Commands
     const val CMD_MAKE_CREDENTIAL = 0x01
     const val CMD_GET_ASSERTION = 0x02
     const val CMD_GET_INFO = 0x04
@@ -47,6 +48,20 @@ object CTAP {
     const val PIN_CMD_SET_PIN = 0x03
     const val PIN_CMD_CHANGE_PIN = 0x04
     const val PIN_CMD_GET_PIN_TOKEN = 0x05
+
+    // AuthData flags
+    const val AUTH_DATA_FLAG_UP = 0x01  // User present
+    const val AUTH_DATA_FLAG_UV = 0x04  // User verified
+    const val AUTH_DATA_FLAG_AT = 0x40  // Attested credential data present
+    const val AUTH_DATA_FLAG_ED = 0x80  // Extension data present
+
+    // COSE key types
+    const val COSE_KTY_OKP = 1
+    const val COSE_KTY_EC2 = 2
+
+    // COSE curves
+    const val COSE_CRV_P256 = 1
+    const val COSE_CRV_ED25519 = 6
 
     private const val STATUS_SUCCESS: Byte = 0x00
 

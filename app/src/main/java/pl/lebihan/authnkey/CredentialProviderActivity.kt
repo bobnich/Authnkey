@@ -672,6 +672,19 @@ class CredentialProviderActivity : AppCompatActivity() {
                 put("transports", org.json.JSONArray().apply {
                     put(transport.transportType.webauthnName)
                 })
+                put("authenticatorData", Base64.encodeToString(
+                    makeCredResult.authData,
+                    Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
+                ))
+                extractPublicKeyAlgorithm(makeCredResult.authData)?.let { alg ->
+                    put("publicKeyAlgorithm", alg)
+                }
+                extractPublicKeySpki(makeCredResult.authData)?.let { spki ->
+                    put("publicKey", Base64.encodeToString(
+                        spki,
+                        Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
+                    ))
+                }
             })
             put("clientExtensionResults", JSONObject().apply {
                 if (credPropsRequested) {
@@ -977,7 +990,7 @@ class CredentialProviderActivity : AppCompatActivity() {
         }
 
         val flags = authData[32].toInt() and 0xFF
-        val hasAttestedCredData = (flags and 0x40) != 0
+        val hasAttestedCredData = (flags and CTAP.AUTH_DATA_FLAG_AT) != 0
 
         if (!hasAttestedCredData) {
             return ByteArray(0)
@@ -990,6 +1003,60 @@ class CredentialProviderActivity : AppCompatActivity() {
 
         val credIdOffset = credIdLengthOffset + 2
         return authData.sliceArray(credIdOffset until credIdOffset + credIdLength)
+    }
+
+    private fun extractPublicKeyAlgorithm(authData: ByteArray): Int? {
+        val coseKey = extractCoseKeyFromAuthData(authData) ?: return null
+        return (coseKey[3L] as? Number)?.toInt()
+    }
+
+    private fun extractPublicKeySpki(authData: ByteArray): ByteArray? {
+        val coseKey = extractCoseKeyFromAuthData(authData) ?: return null
+
+        val kty = (coseKey[1L] as? Number)?.toInt() ?: return null
+        val crv = (coseKey[-1L] as? Number)?.toInt() ?: return null
+
+        return when (kty) {
+            CTAP.COSE_KTY_EC2 -> encodeEc2KeyAsSpki(coseKey, crv)
+            CTAP.COSE_KTY_OKP -> encodeOkpKeyAsSpki(coseKey, crv)
+            else -> null
+        }
+    }
+
+    private fun extractCoseKeyFromAuthData(authData: ByteArray): Map<*, *>? {
+        if (authData.size < 55) return null
+
+        val flags = authData[32].toInt() and 0xFF
+        if ((flags and CTAP.AUTH_DATA_FLAG_AT) == 0) return null
+
+        val credIdLenOffset = 32 + 1 + 4 + 16
+        val credIdLen = ((authData[credIdLenOffset].toInt() and 0xFF) shl 8) or
+                (authData[credIdLenOffset + 1].toInt() and 0xFF)
+
+        val coseKeyOffset = credIdLenOffset + 2 + credIdLen
+        return CborDecoder.decode(authData.sliceArray(coseKeyOffset until authData.size)) as? Map<*, *>
+    }
+
+    private fun encodeEc2KeyAsSpki(coseKey: Map<*, *>, crv: Int): ByteArray? {
+        if (crv != CTAP.COSE_CRV_P256) return null
+
+        val x = coseKey[-2L] as? ByteArray ?: return null
+        val y = coseKey[-3L] as? ByteArray ?: return null
+
+        val point = byteArrayOf(0x04) + x + y
+        val bitString = byteArrayOf(0x03, (point.size + 1).toByte(), 0x00) + point
+        val content = EC2_P256_ALGORITHM_ID + bitString
+        return byteArrayOf(0x30, content.size.toByte()) + content
+    }
+
+    private fun encodeOkpKeyAsSpki(coseKey: Map<*, *>, crv: Int): ByteArray? {
+        if (crv != CTAP.COSE_CRV_ED25519) return null
+
+        val x = coseKey[-2L] as? ByteArray ?: return null
+
+        val bitString = byteArrayOf(0x03, (x.size + 1).toByte(), 0x00) + x
+        val content = OKP_ED25519_ALGORITHM_ID + bitString
+        return byteArrayOf(0x30, content.size.toByte()) + content
     }
 
     private fun returnCreateResult(responseJson: String) {
@@ -1082,5 +1149,18 @@ class CredentialProviderActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "CredProviderActivity"
         private const val ACTION_USB_PERMISSION = "pl.lebihan.authnkey.CRED_USB_PERMISSION"
+
+        // SPKI AlgorithmIdentifier for EC P-256: OID 1.2.840.10045.2.1 + OID 1.2.840.10045.3.1.7
+        private val EC2_P256_ALGORITHM_ID = byteArrayOf(
+            0x30, 0x13,
+            0x06, 0x07, 0x2A, 0x86.toByte(), 0x48, 0xCE.toByte(), 0x3D, 0x02, 0x01,
+            0x06, 0x08, 0x2A, 0x86.toByte(), 0x48, 0xCE.toByte(), 0x3D, 0x03, 0x01, 0x07
+        )
+
+        // SPKI AlgorithmIdentifier for Ed25519: OID 1.3.101.112
+        private val OKP_ED25519_ALGORITHM_ID = byteArrayOf(
+            0x30, 0x05,
+            0x06, 0x03, 0x2B, 0x65, 0x70
+        )
     }
 }
