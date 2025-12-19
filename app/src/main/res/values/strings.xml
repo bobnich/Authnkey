@@ -3,6 +3,7 @@
     <string name="app_name">Authnkey</string>
 
     <!-- Credential Provider Service -->
+    <string name="credential_provider_subtitle">Passkeys on hardware Security Keys</string>
     <string name="credential_entry_title">Security Key</string>
     <string name="credential_entry_use">Use Security Key</string>
     <string name="credential_entry_tap">Tap your security key</string>
