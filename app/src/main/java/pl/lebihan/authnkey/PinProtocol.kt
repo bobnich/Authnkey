@@ -141,10 +141,10 @@ class PinProtocol(private val transport: FidoTransport) {
     }
 
     sealed class PinChangeError(message: String) : Exception(message) {
-        object InvalidPin : PinChangeError("Current PIN is incorrect")
-        object PinBlocked : PinChangeError("PIN is blocked due to too many incorrect attempts")
-        object PinPolicyViolation : PinChangeError("New PIN does not meet authenticator requirements")
-        object PinNotSet : PinChangeError("No PIN is set on this authenticator")
+        class InvalidPin : PinChangeError("Current PIN is incorrect")
+        class PinBlocked : PinChangeError("PIN is blocked due to too many incorrect attempts")
+        class PinPolicyViolation : PinChangeError("New PIN does not meet authenticator requirements")
+        class PinNotSet : PinChangeError("No PIN is set on this authenticator")
         data class Other(val errorName: String) : PinChangeError(errorName)
     }
 
@@ -184,10 +184,10 @@ class PinProtocol(private val transport: FidoTransport) {
             }
 
             return when (CTAP.getResponseError(response)) {
-                CTAP.Error.PIN_INVALID -> Result.failure(PinChangeError.InvalidPin)
-                CTAP.Error.PIN_BLOCKED -> Result.failure(PinChangeError.PinBlocked)
-                CTAP.Error.PIN_POLICY_VIOLATION -> Result.failure(PinChangeError.PinPolicyViolation)
-                CTAP.Error.PIN_NOT_SET -> Result.failure(PinChangeError.PinNotSet)
+                CTAP.Error.PIN_INVALID -> Result.failure(PinChangeError.InvalidPin())
+                CTAP.Error.PIN_BLOCKED -> Result.failure(PinChangeError.PinBlocked())
+                CTAP.Error.PIN_POLICY_VIOLATION -> Result.failure(PinChangeError.PinPolicyViolation())
+                CTAP.Error.PIN_NOT_SET -> Result.failure(PinChangeError.PinNotSet())
                 else -> Result.failure(PinChangeError.Other(CTAP.getErrorName(response[0])))
             }
 
