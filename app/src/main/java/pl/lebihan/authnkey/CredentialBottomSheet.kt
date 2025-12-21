@@ -1,8 +1,10 @@
 package pl.lebihan.authnkey
 
 import android.animation.ObjectAnimator
+import android.content.Context
 import android.content.DialogInterface
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +14,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.core.content.edit
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -60,6 +63,10 @@ class CredentialBottomSheet : BottomSheetDialogFragment() {
     var onPinEntered: ((String) -> Unit)? = null
     var onAccountSelected: ((Int) -> Unit)? = null
 
+    private val useNumericKeyboard: Boolean
+        get() = requireContext().getSharedPreferences("authnkey_prefs", Context.MODE_PRIVATE)
+            .getBoolean("use_numeric_keyboard", true)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -99,6 +106,7 @@ class CredentialBottomSheet : BottomSheetDialogFragment() {
         if (pendingShowPinInput) {
             pinInputLayout.visibility = View.VISIBLE
             btnContinue.visibility = View.VISIBLE
+            applyKeyboardMode(useNumericKeyboard)
             pinEditText.requestFocus()
         }
 
@@ -119,6 +127,10 @@ class CredentialBottomSheet : BottomSheetDialogFragment() {
             } else {
                 false
             }
+        }
+
+        pinInputLayout.setStartIconOnClickListener {
+            onKeyboardModeToggled()
         }
 
         (dialog as? BottomSheetDialog)?.behavior?.apply {
@@ -144,6 +156,50 @@ class CredentialBottomSheet : BottomSheetDialogFragment() {
             onPinEntered?.invoke(pin)
         } else {
             pinInputLayout.error = getString(R.string.pin_too_short)
+        }
+    }
+
+    private fun applyKeyboardMode(numeric: Boolean) {
+        pinInputLayout.setStartIconDrawable(
+            if (numeric) R.drawable.keyboard_24 else R.drawable.dialpad_24
+        )
+
+        pinEditText.inputType = if (numeric) {
+            InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        } else {
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+    }
+
+    private fun onKeyboardModeToggled() {
+        val newMode = !useNumericKeyboard
+
+        requireContext().getSharedPreferences("authnkey_prefs", Context.MODE_PRIVATE)
+            .edit {
+                putBoolean("use_numeric_keyboard", newMode)
+            }
+
+        pinEditText.inputType = if (newMode) {
+            InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        } else {
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+
+        val iconRes = if (newMode) R.drawable.keyboard_24 else R.drawable.dialpad_24
+        pinInputLayout.findViewById<View>(com.google.android.material.R.id.text_input_start_icon)?.let { iconView ->
+            iconView.animate()
+                .alpha(0f)
+                .setDuration(100)
+                .withEndAction {
+                    pinInputLayout.setStartIconDrawable(iconRes)
+                    iconView.alpha = 1f
+                }
+                .start()
+        } ?: pinInputLayout.setStartIconDrawable(iconRes)
+
+        pinEditText.post {
+            val imm = requireContext().getSystemService(InputMethodManager::class.java)
+            imm?.restartInput(pinEditText)
         }
     }
 
@@ -224,6 +280,7 @@ class CredentialBottomSheet : BottomSheetDialogFragment() {
                 hideAccounts()
                 pinEditText.text?.clear()
                 pinInputLayout.error = null
+                applyKeyboardMode(useNumericKeyboard)
                 pinEditText.requestFocus()
                 setState(State.PIN)
                 pinEditText.post {

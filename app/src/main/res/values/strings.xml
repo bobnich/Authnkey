@@ -52,6 +52,7 @@
     <!-- Content descriptions -->
     <string name="security_key_icon_desc">Security Key</string>
     <string name="drag_handle_desc">Drag handle</string>
+    <string name="toggle_keyboard_type">Toggle keyboard type</string>
 
     <!-- MainActivity (Debug) -->
     <string name="usb_permission_denied">USB permission denied</string>
